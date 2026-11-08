@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#080d1d">
+<title>ECHO ZERO — V0.2</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080d1d;font-family:system-ui,-apple-system,Segoe UI,sans-serif;touch-action:none}canvas{display:block;width:100%;height:100%;touch-action:none}#game{position:fixed;inset:0}#hud{position:fixed;inset:0;pointer-events:none;color:#eff8ff}.top{position:absolute;top:max(10px,env(safe-area-inset-top));left:14px;right:14px;display:flex;justify-content:space-between;align-items:center;text-shadow:0 2px 12px #000}.brand{font-weight:900;letter-spacing:.18em;color:#b9a6ff;font-size:clamp(12px,2.3vw,18px)}.stats{font-size:clamp(10px,1.8vw,14px);color:#b7d8ef}.pill{border:1px solid #607ba4aa;background:#101b35cc;border-radius:999px;padding:7px 12px}.hint{position:absolute;top:54px;left:50%;transform:translateX(-50%);font-size:clamp(10px,1.8vw,13px);color:#b9cce6;text-align:center;white-space:nowrap;text-shadow:0 2px 8px #000}.controls{position:absolute;bottom:max(15px,env(safe-area-inset-bottom));left:14px;right:14px;display:flex;justify-content:space-between;align-items:end;pointer-events:auto}.pad{pointer-events:auto;width:clamp(90px,17vw,150px);height:clamp(66px,13vw,110px);border:1px solid #8bdcff77;border-radius:22px;background:#12294a88;display:flex;align-items:center;justify-content:center;color:#d8f7ff;font-weight:800;letter-spacing:.08em;font-size:clamp(10px,1.8vw,14px);box-shadow:inset 0 0 25px #36caff18}.right{display:flex;gap:10px;pointer-events:auto}.action{pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;width:clamp(72px,13vw,112px);height:clamp(66px,13vw,100px);border-radius:22px;border:1px solid #bba3ff88;background:#281b4d99;color:#f4eaff;font-weight:900;font-size:clamp(10px,1.8vw,14px);display:flex;align-items:center;justify-content:center;text-align:center;box-shadow:inset 0 0 25px #9e72ff22}.action.jump{border-color:#75f0ff99;background:#123d5599}.action.active{background:#7b48caaa;transform:scale(.96)}#overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#070c1deF,#101a35eF);color:white;text-align:center;padding:22px}#panel{max-width:540px;width:100%;border:1px solid #718ac866;background:#0e1830ed;border-radius:24px;padding:clamp(18px,4vw,30px);box-shadow:0 20px 80px #0009}h1{margin:0;color:#c4b5fd;font-size:clamp(28px,7vw,48px);letter-spacing:.12em}#panel p{color:#c5d5e9;line-height:1.5;font-size:clamp(13px,2.5vw,16px)}button{border:0;border-radius:14px;background:linear-gradient(100deg,#8b5cf6,#22d3ee);color:#071020;font-weight:900;padding:14px 24px;font-size:16px}#msg{position:absolute;left:50%;top:22%;transform:translateX(-50%);font-weight:900;color:#a5f3fc;text-shadow:0 2px 12px #000;font-size:clamp(14px,3vw,22px);white-space:nowrap}#rotate{display:none;position:fixed;inset:0;background:#080d1d;color:white;z-index:10;align-items:center;justify-content:center;text-align:center;padding:30px;font-weight:700}@media(orientation:portrait){#rotate{display:flex}#hud,#overlay{visibility:hidden}}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud">
+ <div class="top"><div class="brand">ECHO ZERO <span style="color:#7dd3fc">/ V0.2</span></div><div class="stats"><span class="pill">LEVEL 01</span>　<span class="pill" id="timer">00:45</span>　<span class="pill" id="echoCount">ECHO × 0</span></div></div>
+ <div class="hint">Giữ TRÁI / PHẢI để di chuyển · Chạm NHẢY · Giữ ECHO để tạo bản sao</div>
+ <div id="msg"></div>
+ <div class="controls"><div class="right" style="gap:8px"><div class="action" id="leftBtn">◀<br>TRÁI</div><div class="action" id="rightBtn">▶<br>PHẢI</div></div><div class="right"><div class="action" id="echoBtn">GIỮ<br>ECHO</div><div class="action jump" id="jumpBtn">NHẢY<br>↗</div></div></div>
+</div>
+<div id="rotate">↻<br><br>Hãy xoay iPhone sang màn hình ngang để chơi ECHO ZERO.</div>
+<div id="overlay"><div id="panel"><h1>ECHO ZERO</h1><p><b>BẢN SAO PHẢN BỘI · V0.2</b><br>Điều khiển ZERO, tạo bản sao có hình thể 3D chuyển động và phối hợp để mở cổng năng lượng.</p><p>Ngón trái: giữ và kéo để di chuyển.<br>Ngón phải: chạm để nhảy, giữ ECHO để tạo bản sao.<br>V0.2: robot có tay chân chuyển động và hiệu ứng năng lượng.</p><button id="start">BẮT ĐẦU CHƠI</button></div></div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(()=>{
+const host=document.getElementById('game'), overlay=document.getElementById('overlay'), start=document.getElementById('start');
+let scene,camera,renderer,player,door,gate,plate,platforms=[],hazards=[],echoes=[],particles=[];
+let running=false,won=false,dead=false,last=0,elapsed=0,record=[],recordClock=0,echoCooldown=0,echoCount=0;
+let x=-5.8,y=0,vy=0,grounded=true,move=0,slow=1;
+const world={left:-8.5,right:8.5};
+function mat(c,em=0){return new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:em,metalness:.25,roughness:.45})}
+function box(w,h,d,m,X,Y,Z){let o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(X,Y,Z);scene.add(o);return o}
+
+function createRobot(isEcho=false){
+ const root=new THREE.Group();
+ const shellMat=new THREE.MeshStandardMaterial({
+  color:isEcho?0x62eaff:0xe8f3ff,
+  emissive:isEcho?0x18bde8:0x263b65,
+  emissiveIntensity:isEcho?1.8:.35,
+  metalness:.55,roughness:.28,
+  transparent:isEcho,opacity:isEcho?.48:1
+ });
+ const jointMat=new THREE.MeshStandardMaterial({
+  color:isEcho?0x9df5ff:0x697da7,
+  emissive:isEcho?0x26cfff:0x111a35,
+  emissiveIntensity:isEcho?1.5:.15,
+  metalness:.45,roughness:.35,
+  transparent:isEcho,opacity:isEcho?.5:1
+ });
+ const glowMat=new THREE.MeshStandardMaterial({color:isEcho?0xc9fbff:0x4deaff,emissive:0x22cfff,emissiveIntensity:2.4,transparent:isEcho,opacity:isEcho?.8:1});
+ function part(geo,mat,x,y,z,parent=root){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;parent.add(m);return m}
+ // torso, head and luminous face
+ const torso=part(new THREE.BoxGeometry(.62,.72,.38),shellMat,0,.88,0);
+ const chest=part(new THREE.BoxGeometry(.3,.24,.06),glowMat,0,.82,.22);
+ const head=part(new THREE.SphereGeometry(.29,20,16),shellMat,0,1.48,0);
+ head.scale.set(1,1.05,.88);
+ part(new THREE.BoxGeometry(.38,.105,.055),glowMat,0,1.49,.245);
+ part(new THREE.SphereGeometry(.065,12,10),glowMat,-.105,1.49,.285);
+ part(new THREE.SphereGeometry(.065,12,10),glowMat,.105,1.49,.285);
+ // shoulder pivots and arms
+ const arms=[];
+ for(const s of [-1,1]){
+  const pivot=new THREE.Group();pivot.position.set(s*.39,1.12,0);root.add(pivot);
+  part(new THREE.SphereGeometry(.13,12,10),jointMat,0,0,0,pivot);
+  const upper=part(new THREE.CapsuleGeometry(.085,.29,4,8),shellMat,0,-.22,0,pivot);
+  const elbow=part(new THREE.SphereGeometry(.09,12,10),jointMat,0,-.43,0,pivot);
+  const fore=part(new THREE.CapsuleGeometry(.075,.23,4,8),shellMat,0,-.59,0,pivot);
+  part(new THREE.BoxGeometry(.16,.13,.17),jointMat,0,-.77,.015,pivot);
+  arms.push(pivot);
+ }
+ // hips and articulated legs
+ const legs=[];
+ for(const s of [-1,1]){
+  const pivot=new THREE.Group();pivot.position.set(s*.17,.56,0);root.add(pivot);
+  part(new THREE.SphereGeometry(.105,12,10),jointMat,0,0,0,pivot);
+  part(new THREE.CapsuleGeometry(.105,.28,4,8),shellMat,0,-.23,0,pivot);
+  const knee=part(new THREE.SphereGeometry(.085,12,10),jointMat,0,-.43,0,pivot);
+  part(new THREE.CapsuleGeometry(.085,.22,4,8),shellMat,0,-.59,0,pivot);
+  part(new THREE.BoxGeometry(.23,.12,.34),jointMat,0,-.73,.07,pivot);
+  legs.push(pivot);
+ }
+ // small floating energy ring
+ const ring=new THREE.Mesh(new THREE.TorusGeometry(.48,.018,8,32),glowMat);
+ ring.rotation.x=Math.PI/2;ring.position.y=.08;root.add(ring);
+ root.userData={arms,legs,ring,isEcho};
+ return root;
+}
+function animateRobot(robot,t,moving,jumping=false){
+ const u=robot.userData;if(!u)return;
+ const swing=moving?Math.sin(t*12)*.62:Math.sin(t*2)*.035;
+ u.legs[0].rotation.x=swing+(jumping?-.45:0);
+ u.legs[1].rotation.x=-swing+(jumping?-.45:0);
+ u.arms[0].rotation.x=-swing*.72;
+ u.arms[1].rotation.x=swing*.72;
+ u.ring.rotation.z=t*(u.isEcho?1.8:.8);
+ robot.position.y += 0;
+}
+
+function init(){
+ scene=new THREE.Scene();scene.background=new THREE.Color(0x080d1d);scene.fog=new THREE.Fog(0x080d1d,18,38);
+ camera=new THREE.OrthographicCamera(-9,9,5.05,-5.05,.1,100);camera.position.set(0,4,22);camera.lookAt(0,2,0);
+ renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;host.appendChild(renderer.domElement);
+ scene.add(new THREE.HemisphereLight(0x9ccaff,0x17102e,2.0));let light=new THREE.DirectionalLight(0xffffff,2.5);light.position.set(-4,10,8);light.castShadow=true;scene.add(light);
+ // distant sci-fi skyline
+ for(let i=0;i<28;i++){let h=1+Math.random()*5;let b=box(.35+Math.random()*.8,h,.5,mat(i%2?0x14254a:0x21194b,.25),-10+i*.75,h/2-1.2,-5);b.material.transparent=true;b.material.opacity=.7}
+ box(19,.5,3,mat(0x182748,.3),0,-.4,0);
+ // platform segments and floating steps
+ platforms.push({x:0,w:18,y:-.15});
+ box(18,.18,2,mat(0x263d66,.35),0,-.12,0);
+ for(let i=0;i<12;i++){let xx=-8+i*1.45;box(.035,8,.03,mat(0x29436d,.35),xx,3,-.8)}
+ // raised platform, bridge, plate
+ box(2.5,.35,1.6,mat(0x245c78,.6),-1.5,1.1,0);platforms.push({x:-1.5,w:2.5,y:1.28});
+ plate=box(1.25,.16,1.0,mat(0x8b5cf6,1.2),4.2,.03,.2);
+ // door and gate
+ door=new THREE.Group();let frame= new THREE.Mesh(new THREE.BoxGeometry(.35,3.2,.5),mat(0x38d9f2,1.4));frame.position.set(7,1.5,0);door.add(frame);let leaf=new THREE.Mesh(new THREE.BoxGeometry(.18,2.8,.55),mat(0x7652c9,1));leaf.position.set(6.75,1.4,0);door.add(leaf);scene.add(door);
+ gate=leaf;
+ // hazard blocks
+ for(let i=0;i<3;i++){let h=box(.75,.75,.8,mat(0xf05283,.9),-4+i*2.1,.25,.1);hazards.push(h)}
+ // articulated 3D hero robot
+ player=createRobot(false);
+ scene.add(player);player.position.set(x,0,0);
+ // star particles
+ for(let i=0;i<70;i++){let p=new THREE.Mesh(new THREE.SphereGeometry(.025,6,6),mat(0x6e9dff,.9));p.position.set((Math.random()-.5)*22,Math.random()*9-1,-3);scene.add(p);particles.push(p)}
+ window.addEventListener('resize',resize);
+}
+function resize(){if(!renderer)return;camera.left=-9;camera.right=9;camera.top=9*innerHeight/innerWidth;camera.bottom=-camera.top;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)}
+function makeEcho(){
+ if(record.length<25||echoCooldown>0)return;
+ const group=createRobot(true);scene.add(group);
+ echoes.push({obj:group,index:0,active:true});echoCount++;document.getElementById('echoCount').textContent='ECHO × '+echoCount;echoCooldown=1.1;showMsg('ECHO ĐÃ ĐƯỢC TẠO!');
+}
+function showMsg(s){let el=document.getElementById('msg');el.textContent=s;setTimeout(()=>{if(el.textContent===s)el.textContent=''},1300)}
+function reset(){x=-5.8;y=0;vy=0;grounded=true;elapsed=0;record=[];recordClock=0;echoCooldown=0;echoCount=0;echoes.forEach(e=>scene.remove(e.obj));echoes=[];won=false;dead=false;player.position.set(x,0,0);player.rotation.set(0,0,0);gate.position.y=1.4;document.getElementById('echoCount').textContent='ECHO × 0';}
+function endGame(win){running=false;won=win;overlay.style.visibility='visible';overlay.style.display='flex';document.getElementById('panel').innerHTML=win?'<h1>LEVEL CLEAR!</h1><p>Bạn đã phối hợp với chính quá khứ của mình.<br>Đây mới chỉ là màn đầu tiên.</p><button id="again">CHƠI LẠI</button>':'<h1>THỬ LẠI!</h1><p>Đừng để bản sao và chướng ngại vật đánh bại bạn.</p><button id="again">CHƠI LẠI</button>';document.getElementById('again').onclick=()=>{reset();overlay.style.display='none';running=true;last=performance.now()}}
+function update(dt){
+ if(!running)return;elapsed+=dt;echoCooldown=Math.max(0,echoCooldown-dt);
+ let remain=Math.max(0,45-elapsed);document.getElementById('timer').textContent='00:'+String(Math.ceil(remain)).padStart(2,'0');
+ if(remain<=0){endGame(false);return}
+ x+=move*5.2*dt;x=Math.max(world.left,Math.min(world.right,x));
+ vy-=16*dt;y+=vy*dt;
+ let floor=-.03;
+ if(x>-2.8&&x<-.25&&y<1.28&&y>=.65&&vy<=0)floor=1.28;
+ if(y<=floor){y=floor;vy=0;grounded=true}else grounded=false;
+ player.position.set(x,y,0);
+ player.rotation.z=move*.08;
+ animateRobot(player,elapsed,Math.abs(move)>.05,!grounded);
+ recordClock+=dt;if(recordClock>=.04){recordClock=0;record.push({x,y});if(record.length>300)record.shift()}
+ echoes.forEach(e=>{if(e.index<record.length){let p=record[e.index];e.obj.position.set(p.x,p.y,0);e.index++}else{e.index=0}});
+ // switch: current player or echo standing on plate
+ let pressed=Math.abs(x-4.2)<.65&&y<.35;
+ for(const e of echoes){let p=e.obj.position;if(Math.abs(p.x-4.2)<.65&&p.y<.35)pressed=true}
+ plate.material.emissiveIntensity=pressed?2.7:.6;
+ gate.position.y=pressed?4.5:1.4;
+ // collision hazards
+ for(const h of hazards){if(Math.abs(x-h.position.x)<.55&&y<.65){endGame(false);return}}
+ if(x>6.25&&pressed){endGame(true);return}
+ camera.position.x+=(Math.max(-1,Math.min(1,x/8))*1.2-camera.position.x)*dt*1.8;camera.lookAt(camera.position.x,2,0);
+ particles.forEach((p,i)=>{p.position.y+=Math.sin(elapsed*1.5+i)*.0015});
+}
+function loop(t){let dt=Math.min(.035,(t-last)/1000||0);last=t;update(dt);if(renderer)renderer.render(scene,camera);requestAnimationFrame(loop)}
+// Multi-touch: left-half pointer steers; right-half tap jumps, long press echo.
+const pointers=new Map();let echoTimer=null;
+function bindControl(el,kind){
+ el.addEventListener('pointerdown',e=>{e.preventDefault();el.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{kind,start:performance.now(),x:e.clientX});
+ if(kind==='move'){move=0}
+ if(kind==='jump'){vy=grounded?7.2:vy;grounded=false;el.classList.add('active')}
+ if(kind==='echo'){el.classList.add('active');echoTimer=setTimeout(()=>{if(pointers.has(e.pointerId))makeEcho()},380)}
+ });
+ const finish=e=>{if(!pointers.has(e.pointerId))return;let p=pointers.get(e.pointerId);pointers.delete(e.pointerId);if(p.kind==='move')move=0;if(p.kind==='echo'){clearTimeout(echoTimer);el.classList.remove('active')}if(p.kind==='jump')el.classList.remove('active')};
+ el.addEventListener('pointerup',finish);el.addEventListener('pointercancel',finish);
+ if(kind==='move')el.addEventListener('pointermove',e=>{if(pointers.has(e.pointerId)){let p=pointers.get(e.pointerId);move=Math.max(-1,Math.min(1,(e.clientX-p.x)/42));if(Math.abs(move)<.18)move=0}});
+}
+
+// Explicit left/right touch buttons. Pointer events support simultaneous fingers on iPhone.
+function bindDirection(id,dir){
+ const el=document.getElementById(id);
+ const active=new Set();
+ el.style.touchAction='none';
+ el.addEventListener('pointerdown',e=>{
+  e.preventDefault();el.setPointerCapture(e.pointerId);active.add(e.pointerId);
+  move=dir;el.classList.add('active');
+ });
+ const release=e=>{
+  if(!active.has(e.pointerId))return;
+  active.delete(e.pointerId);
+  if(active.size===0){el.classList.remove('active');move=0}
+ };
+ el.addEventListener('pointerup',release);
+ el.addEventListener('pointercancel',release);
+ el.addEventListener('lostpointercapture',release);
+}
+bindDirection('leftBtn',-1);
+bindDirection('rightBtn',1);
+bindControl(document.getElementById('jumpBtn'),'jump');bindControl(document.getElementById('echoBtn'),'echo');
+
+window.addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')move=-1;if(e.key==='ArrowRight'||e.key==='d')move=1;if(e.key===' '||e.key==='ArrowUp'){if(grounded){vy=7.2;grounded=false}}if(e.key==='e')makeEcho()});
+window.addEventListener('keyup',e=>{if(['ArrowLeft','ArrowRight','a','d'].includes(e.key))move=0});
+start.onclick=()=>{overlay.style.display='none';reset();running=true;last=performance.now()};
+init();requestAnimationFrame(loop);
+})();
+</script>
+</body></html>
